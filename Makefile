@@ -7,11 +7,11 @@ TARGET = main
 
 all: $(TARGET)
 
-$(TARGET): main.o
+$(TARGET): $(TARGET).o
 	$(LD) $(LDFLAGS) $^ -o $@
 
-main.o: main.s
+$(TARGET).o: $(TARGET).s
 	$(AS) $(ASFLAGS) $< -o $@
 
 clean:
-	rm -f $(TARGET) $(TARGET).o
+	rm -f $(TARGET).o $(TARGET)

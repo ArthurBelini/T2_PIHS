@@ -3,6 +3,8 @@
 # Pedro Lucas Keizo Honda - RA119188
 
 ## Struct do registro
+# next - 4B
+#
 # nome - 50B
 # celular - 11B
 # cidade - 50B
@@ -17,7 +19,7 @@
 #
 # aluguel - 4B
 #
-# Total: 50B + 11B + 1B + 100B + 8B + 1B + 4B + 4B = 179B
+# Total: 4B + 50B + 11B + 1B + 100B + 8B + 1B + 4B + 4B = 183B
 
 .section .data
     ## Struct de registro
@@ -38,7 +40,7 @@
     aluguel:    .float  0.0
 
     ## Auxiliares
-    tam_reg:    .int    179
+    tam_reg:    .int    183
 
     menu_str:   .asciz  "Menu de Opcoes\n<1> Inserir\n<2> Remover\n<3> Consultar\n<4> Gravar\n<5> Recuperar\n<6> Listar\n<7> Sair\nDigite opcao => "
     jmp_line:   .asciz  "\n"
@@ -107,19 +109,21 @@ tratar_opcoes:
 inserir:
     leal    regs_lst, %edx      # Move endereço de regs_lst para %edx
 
-    proximo:
+    proximo_inserir:
     cmpl	$0, (%edx)          # 0 representa fim da lista
     je      alocar              # Caso 0, pula para alocar
 
     movl    (%edx), %eax        # Move valor no endereço em %edx para %eax
     movl    %eax, %edx          # Move valor de %eax para %edx
 
-    jmp     proximo
+    jmp     proximo_inserir
 
     alocar:
     pushl   %edx                # Backup de %edx
     pushl   tam_reg
     call    malloc
+
+    break1:
 
     addl    $4, %esp            # Retira tam_reg da pilha
     popl    %edx                # Recuperar %edx
@@ -189,11 +193,35 @@ listar:
     RET
 
 ## Libera lista
+## Caminha pela lista enquanto libera os nós
+## Em geral, inverso de inserir
 liberar:
+    movl    regs_lst, %edx      # Move endereço em regs_lst para %edx
 
+    proximo_liberar:
+    cmpl	$0, %edx          # 0 representa fim da lista
+    je      fim_lst             # Caso 0, pula para fim_lst
+
+    movl    (%edx), %ebx        # Backup da prox pos da lista
+
+    pushl   %edx              # Endereço de %edx que se deseja liberar para pilha
+    call    free
+    addl    $4, %esp
+
+    breaka:
+    movl    %ebx, %edx          # Recupera prox pos da lista
+    breakb:
+
+    jmp     proximo_liberar
+
+    fim_lst:
+    RET
 
 ## Saída do programa
-fim:                   
+fim:
+    call liberar                # Libera lista de registros
+               
+    break2:
     movl $1, %eax               # eax <- sair
     xor %ebx, %ebx              # ebx <- saída sem erro
     int $0x80                   # Chamada de sistema
