@@ -4,13 +4,15 @@
 
 ## Struct do registro
 # nome - 50B
-# celular - 11B 
+# celular - 11B
+# cidade - 50B
+# bairro - 50B
 #
 # tipo - 1B (casa - 0, apto. - 1)
 # garagem - 1B (nao - 0, sim - 1)
 #
-# endereco - struct: cidade + bairro - 50B + 50B - 100B 
-# quartos - struct: simples + suite - 4B + 4B - 8B
+# simples - 4B
+# suites - 4B
 # metragem - 4B
 #
 # aluguel - 4B
@@ -18,37 +20,47 @@
 # Total: 50B + 11B + 1B + 100B + 8B + 1B + 4B + 4B = 179B
 
 .section .data
+    ## Struct de registro
     nome:       .space  50
     celular:    .space  11
+    cidade:     .space  11
+    bairro:     .space  11
 
     tipo:       .byte   1
     garagem:    .byte   1   
 
-    endereco:   .int    0       # Ponteiro para pos inicial da struct endereco
-    quartos:    .int    0       # Ponteiro para pos inicial da struct quartos
     metragem:   .int    0
+    simples:    .int    0
+    suites:     .int    0
+    regs_lst:   .int    0       # Ponteiro para pos inicial da lista de registros
+    next:       .int    0       # Ponteiro para próxima posição na lista
 
     aluguel:    .float  0.0
 
+    ## Auxiliares
     tam_reg:    .int    179
 
-    menu_str:   .asciz "Menu de Opcoes\n<1> Inserir\n<2> Remover\n<3> Consultar\n<4> Gravar\n<5> Recuperar\n<6> Listar\n<7> Sair\nDigite opcao => "
-
-    teste: 	    .asciz  "%d\n"
+    menu_str:   .asciz  "Menu de Opcoes\n<1> Inserir\n<2> Remover\n<3> Consultar\n<4> Gravar\n<5> Recuperar\n<6> Listar\n<7> Sair\nDigite opcao => "
+    jmp_line:   .asciz  "\n"
 
     opcao:      .int    0
 
-    tipo_int:    .asciz  "%d"
+    tipo_int:   .asciz  "%d"
+
+    teste: 	    .asciz  "%d\n"
 
 .section .text
 
 .globl _start
 
-## Inicialização do programa - Menu de ações
+## Inicialização de variáveis
 _start:
     call    menu                # Recebe opcao
 
     call    tratar_opcoes       # Executa opcao
+
+    pushl	$jmp_line           # Pula uma linha
+	call	printf
 
     jmp     _start
 
@@ -90,15 +102,29 @@ tratar_opcoes:
 
     RET
 
-## Inserção de cadastro  em memória
+## Inserção de registro em memória
+## Caminha pela lista até chegar ao fim e insere
 inserir:
-    movl    $1, %eax
+    leal    regs_lst, %edx      # Move endereço de regs_lst para %edx
 
-    pushl   %eax
-	pushl   $teste
-	call    printf
+    proximo:
+    cmpl	$0, (%edx)          # 0 representa fim da lista
+    je      alocar              # Caso 0, pula para alocar
 
-    addl    $8, %esp
+    movl    (%edx), %eax        # Move valor no endereço em %edx para %eax
+    movl    %eax, %edx          # Move valor de %eax para %edx
+
+    jmp     proximo
+
+    alocar:
+    pushl   %edx                # Backup de %edx
+    pushl   tam_reg
+    call    malloc
+
+    addl    $4, %esp            # Retira tam_reg da pilha
+    popl    %edx                # Recuperar %edx
+    movl    $0, (%eax)          # Move 0 para o endereço do valor de %eax
+    movl    %eax, (%edx)        # Move endereço em %eax para endereço do valor de %edx
 
     RET
 
@@ -161,6 +187,10 @@ listar:
     addl    $8, %esp
 
     RET
+
+## Libera lista
+liberar:
+
 
 ## Saída do programa
 fim:                   
