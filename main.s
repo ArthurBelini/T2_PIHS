@@ -6,9 +6,9 @@
 # next - 4B
 #
 # nome - 50B
-# celular - 12B
 # cidade - 50B
 # bairro - 50B
+# celular - 12B
 #
 # tipo - 1B (casa - 0, apto. - 1)
 # garagem - 1B (nao - 0, sim - 1)
@@ -19,28 +19,29 @@
 #
 # aluguel - 4B
 #
-# Total: 4B + 50B + 12B + 1B + 100B + 8B + 1B + 4B + 4B = 184B
+# Total: 4B + 50B + 50B + 50B + 12B + 1B + 1B + 4B + 4B + 4B + 4B = 184B
 
 .section .data
     ## Struct de registro
-    nome:           .space  50
-    celular:        .space  12
-    cidade:         .space  50
-    bairro:         .space  50
+    reg_str:        .space  50      # Nome, cidade e bairro
 
-    tipo:           .byte   1
-    garagem:        .byte   1   
+    reg_bool:       .byte   1       # Tipo e garagem
 
-    metragem:       .int    0
-    simples:        .int    0
-    suites:         .int    0
-    regs_lst_first: .int    0       # Ponteiro para pos inicial da lista de registros
-    regs_lst_cur:   .int    0       # Ponteiro para pos atual da lista de registros
-    next:           .int    0       # Ponteiro para próxima posição na lista
+    reg_int:        .int    0       # Quantidade de quartos simples, suites e metragem
 
-    aluguel:        .float  0.0
+    reg_float:      .float  0.0     # Aluguel
 
     ## Auxiliares
+    regs_lst_first: .int    0       # Ponteiro para pos inicial da lista de registros
+    next_reg_addr:  .int    0       # Ponteiro para prox pos da lista de registros
+    prev_reg_addr:  .int    0       # Ponteiro para pos anterior a atual da lista de registros
+    cur_reg_addr:   .int    0       # Ponteiro para pos atual a atual da lista de registros
+    next:           .int    0       # Ponteiro para próxima posição na lista
+    offset:         .int    0       # Deslocamento atual do registro atual
+    qtd_bytes:      .int    0       # Quantidade de bytes lidos
+    num_value:      .int    0       # Valor de um campo numerico do registro
+    qtd_quartos:    .int    0       # Quantidade de quartos (simples + suites) no novo registro
+
     tam_reg:        .int    184
 
     menu_str:       .asciz  "Menu de Opcoes\n<1> Inserir\n<2> Remover\n<3> Consultar\n<4> Gravar\n<5> Recuperar\n<6> Listar\n<7> Sair\nDigite opcao => "
@@ -50,6 +51,8 @@
 
     tipo_int:       .asciz  "%d"
     tipo_str:       .asciz  "%s"
+    tipo_bool:      .asciz  "%d"
+    tipo_float:     .asciz  "%f"
 
     pede_nome:      .asciz  "Nome: "
     pede_celular:   .asciz  "Celular (11 digitos): "
@@ -122,98 +125,218 @@ tratar_opcoes:
 ## Inserção de registro em memória
 ## Caminha pela lista até chegar ao fim e insere
 inserir:
-    call    alocar
+    # Restauracao de variaveis
+    movl    $4, offset              # Offset do primeiro campo do registro
+    movl    $0, qtd_quartos         # Reseta contador de qtd_quartos
 
-    call    ler_nome
+    # Aloca memoria para novo registro
+    call    alocar                  # Aloca registro e poe em cur_reg_addr
+
+    movl    $50, qtd_bytes          # Inicia leituras de strings de 50 bytes
+
+    # Leitura do nome
+    pushl	$reg_str  
+    pushl	$tipo_str  
+    pushl	$pede_nome   
+    call    pedir
+
+    call    ler_str
+
+    # Leitura da cidade
+    pushl	$reg_str  
+    pushl	$tipo_str
+    pushl	$pede_cidade
+    call    pedir
+
+    call    ler_str
+
+    # Leitura do bairro
+    pushl	$reg_str
+    pushl	$tipo_str
+    pushl	$pede_bairro
+    call    pedir
+
+    call    ler_str
+
+    movl    $12, qtd_bytes          # Le celular de 11 digitos
+
+    # Leitura do celular
+    pushl	$reg_str 
+    pushl	$tipo_str
+    pushl	$pede_celular  
+    call    pedir
+
+    call    ler_str
+
+    movl    $1, qtd_bytes           # Inicia leituras de booleanos de 1 byte
+
+    # Leitura do tipo
+    pushl	$reg_bool
+    pushl	$tipo_bool  
+    pushl	$pede_tipo
+    call    pedir
+    movl    reg_bool, %eax
+    movl    %eax, num_value
+
+    call    ler_num
+
+    # Leitura da existencia de garagem
+    pushl	$reg_bool
+    pushl	$tipo_bool
+    pushl	$pede_garagem
+    call    pedir
+    movl    reg_bool, %eax
+    movl    %eax, num_value
+
+    call    ler_num
+
+    movl    $4, qtd_bytes           # Inicia leituras de ints e floats de 4 byte
+
+    # Leitura de quantidade de quartos simples
+    pushl	$reg_int
+    pushl	$tipo_int 
+    pushl	$pede_simples 
+    call    pedir
+    movl    reg_int, %eax
+    movl    %eax, num_value
+
+    call    ler_num
+
+    addl    $reg_int, qtd_quartos
+
+    # Leitura da quantidade de suites
+    pushl	$reg_int  
+    pushl	$tipo_int 
+    pushl	$pede_suites 
+    call    pedir
+    movl    reg_int, %eax
+    movl    %eax, num_value
+
+    call    ler_num
+
+    addl    $reg_int, qtd_quartos
+
+    # Leitura da metragem
+    pushl	$reg_int  
+    pushl	$tipo_int 
+    pushl	$pede_metragem 
+    call    pedir
+    movl    reg_int, %eax
+    movl    %eax, num_value
+
+    call    ler_num
+
+    # Leitura do aluguel
+    pushl	$reg_float
+    pushl	$tipo_float 
+    pushl	$pede_aluguel
+    call    pedir
+    movl    reg_float, %eax
+    movl    %eax, num_value
+
+    call    ler_num
+
+    # Finalizacao
+    call    ordenar                 # Poe a memoria alocada na pos de acordo com num de quartos (s + s)
 
     RET
-    
 
+# Aloca memoria para novo registro
 alocar:
-    leal    regs_lst_first, %edx    # Move endereço de regs_lst para %edx
-
-    proximo_inserir:
-    cmpl	$0, (%edx)              # 0 representa fim da lista
-    je      fim_lst_alocar          # Caso 0, pula para alocar
-
-    movl    (%edx), %eax            # Move valor no endereço em %edx para %eax
-    movl    %eax, %edx              # Move valor de %eax para %edx
-
-    jmp     proximo_inserir
-
-    fim_lst_alocar:
-    pushl   %edx                    # Backup de %edx
     pushl   tam_reg
     call    malloc
 
-    addl    $4, %esp                # Retira tam_reg da pilha
-    popl    %edx                    # Recuperar %edx
-    movl    $0, (%eax)              # Move 0 para o endereço do valor de %eax
-    movl    %eax, (%edx)            # Move endereço em %eax para endereço do valor de %edx
+    movl    %eax, cur_reg_addr
 
-    movl    %eax, regs_lst_cur      # Move pos atual da lista a regs_lst_cur
+    addl    $4, %esp
 
     RET
 
-## Le o nome do novo registro
-ler_nome:
-    # Imprime pedido de nome
-    pushl	$pede_nome              
-	call	printf
+# Pede string do novo registro
+pedir:
+    popl    %ebx
 
-    # Le nome
-    pushl	$nome		            
-	pushl	$tipo_str	
+    # Imprime pedido de string
+    call	printf
+    addl    $4, %esp
+
+    # Le string
 	call	scanf
 
-    # Define fonte (nome) e destino (regs_lst_cur) para escrita de nome no registro
-    leal    nome, %esi              
-    movl    regs_lst_cur, %edi
-    addl    $4, %edi
+    addl    $8, %esp
+
+    pushl   %ebx
+
+    RET
+
+## Le uma string do novo registro
+ler_str:
+    # Define fonte (reg_str) e destino (regs_lst_cur) para escrita de nome no registro
+    leal    reg_str, %esi              
+    movl    cur_reg_addr, %edi
+    addl    offset, %edi
 
     # Move valor de nome para endereco em regs_lst_cur
-    movl    $50, %ecx 
+    movl    qtd_bytes, %ecx 
     rep     movsb
 
-    addl    $8, %esp
+    addl    qtd_bytes, %eax
+    addl    %eax, offset
+
+    RET
+
+## Le um numero do novo registro
+ler_num:             
+    movl    cur_reg_addr, %edi
+    addl    offset, %edi
+
+    movl    $num_value, (%edi)
+
+    addl    qtd_bytes, %eax
+    addl    %eax, offset
     
     RET
 
-## Le o celular do novo registro
-ler_celular:
-    movl    50(%edx), %eax          # Move até posição correta no registro
+# Posiciona registro alocado na pos da lista segundo o num de quartos (simples + suites)
+ordenar:
+    movl    regs_lst_first, %edx
 
-## Le a cidade do novo registro
-ler_cidade:
-    movl    11(%edx), %eax          # Move até posição correta no registro
+    leal    regs_lst_first, %eax
+    movl    %eax, prev_reg_addr
+    movl    %edx, next_reg_addr
 
-## Le o bairro do novo registro
-ler_bairro:
-    movl    50(%edx), %eax          # Move até posição correta no registro
+    proximo_procurar:
+    cmpl	$0, %edx
+    je      inserir_na_pos
 
-## Le o tipo do novo registro
-ler_tipo:
-    movl    50(%edx), %eax          # Move até posição correta no registro
+    movl	168(%edx), %edx
+    addl	$4, %edx
 
-## Le se tem garagem no novo registro
-ler_garagem:
-    movl    1(%edx), %eax           # Move até posição correta no registro
+    cmpl	$qtd_quartos, %edx
+    jg      inserir_na_pos
 
-## Le a quantidade de quartos simples do novo registro
-ler_simples:
-    movl    1(%edx), %eax           # Move até posição correta no registro
+    movl    (%edx), %eax
+    movl    %eax, %edx
 
-## Le a quantidade de suites do novo registro
-ler_suites:
-    movl    4(%edx), %eax           # Move até posição correta no registro
+    jmp     proximo_inserir
 
-## Le a metragem do novo registro
-ler_metragem:
-    movl    4(%edx), %eax           # Move até posição correta no registro
+    movl    $next_reg_addr, prev_reg_addr
+    movl    (%edx), %eax
+    movl    %eax, next_reg_addr
+    movl    next_reg_addr, %edx
 
-## Le o aluguel do novo registro
-ler_aluguel:
-    movl    4(%edx), %eax           # Move até posição correta no registro    
+    jmp     inserir_na_pos
+
+    inserir_na_pos:
+    movl    cur_reg_addr, %eax
+
+    movl    prev_reg_addr, %ebx
+    movl    %eax, (%ebx)
+
+    movl    next_reg_addr, %ebx
+    movl    %ebx, (%eax)
+
+    RET
 
 ########## Remoção ##########
 
@@ -308,3 +431,31 @@ fim:
     movl $1, %eax                   # eax <- sair
     xor %ebx, %ebx                  # ebx <- saída sem erro
     int $0x80                       # Chamada de sistema
+
+########## Auxiliares ##########
+
+mostrar_reg:
+    leal    regs_lst_first, %edx    # Move endereço de regs_lst para %edx
+
+    proximo_inserir:
+    cmpl	$0, (%edx)              # 0 representa fim da lista
+    je      fim_lst_alocar          # Caso 0, pula para alocar
+
+    movl    (%edx), %eax            # Move valor no endereço em %edx para %eax
+    movl    %eax, %edx              # Move valor de %eax para %edx
+
+    jmp     proximo_inserir
+
+    fim_lst_alocar:
+    pushl   %edx                    # Backup de %edx
+    pushl   tam_reg
+    call    malloc
+
+    addl    $4, %esp                # Retira tam_reg da pilha
+    popl    %edx                    # Recuperar %edx
+    movl    $0, (%eax)              # Move 0 para o endereço do valor de %eax
+    movl    %eax, (%edx)            # Move endereço em %eax para endereço do valor de %edx
+
+    movl    %eax, cur_reg_addr      # Move pos atual da lista a regs_lst_cur
+
+    RET
