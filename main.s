@@ -65,6 +65,8 @@
     pede_suites:    .asciz  "Suites: "
     pede_aluguel:   .asciz  "Aluguel: "
 
+    str_terminator: .asciz  "\0"
+
     teste: 	        .asciz  "%d\n"
 
 .section .text
@@ -132,7 +134,7 @@ inserir:
     # Aloca memoria para novo registro
     call    alocar                  # Aloca registro e poe em cur_reg_addr
 
-    movl    $50, qtd_bytes          # Inicia leituras de strings de 50 bytes
+    movl    $49, qtd_bytes          # Inicia leituras de strings de 50 bytes
 
     # Leitura do nome
     pushl	$reg_str  
@@ -158,7 +160,7 @@ inserir:
 
     call    ler_str
 
-    movl    $12, qtd_bytes          # Le celular de 11 digitos
+    movl    $11, qtd_bytes          # Le celular de 11 digitos
 
     # Leitura do celular
     pushl	$reg_str 
@@ -271,6 +273,10 @@ pedir:
 
 # Le uma string do novo registro
 ler_str:
+    movl    qtd_bytes, %eax
+
+    movb    $0, reg_str(%eax)
+
     # Define fonte (reg_str) e destino (regs_lst_cur) para escrita de nome no registro
     leal    reg_str, %esi              
     movl    cur_reg_addr, %edi
@@ -280,56 +286,60 @@ ler_str:
     movl    qtd_bytes, %ecx 
     rep     movsb
 
-    call deslocar
+    movl    qtd_bytes, %eax
+    addl    %eax, offset
+    addl    $1, offset
 
     RET
 
 # Le um numero do novo registro
 ler_num:             
-    movl    cur_reg_addr, %edi
-    addl    offset, %edi
+    movl    cur_reg_addr, %eax
+    addl    offset, %eax
 
-    movl    $num_value, (%edi)
+    movl    num_value, %ebx
+    movl    %ebx, (%eax)
 
-    call deslocar
-    
-    RET
-
-# Desloca offset no registro que esta sendo inserido
-deslocar:
-    movl    $0, %eax
-    addl    qtd_bytes, %eax
+    movl    qtd_bytes, %eax
     addl    %eax, offset
-
+    
     RET
 
 # Posiciona registro alocado na pos da lista segundo o num de quartos (simples + suites)
 ordenar:
-    movl    regs_lst_first, %eax
+    # Inicializacao
+    # prev_reg_addr <- endereco do ponteiro para primeiro endereco da lista
+    # next_reg_addr <- endereco do primeiro registro ou 0 (lista vazia)
+    leal    regs_lst_first, %eax
+    movl    regs_lst_first, %ebx
 
-    leal    regs_lst_first, %ebx
-    movl    %ebx, prev_reg_addr
-    movl    %eax, next_reg_addr
+    movl    %eax, prev_reg_addr
+    movl    %ebx, next_reg_addr
 
     proximo_ordenar:
+    movl    next_reg_addr, %eax
+
     cmpl	$0, %eax
     je      inserir_na_pos
 
-    # Quantidade de quartos (simples + suites) do registro atual
-    movl    next_reg_addr, %ebx
-    movl    %ebx, prev_reg_addr
+    ## Calcula quantidade de quartos (simples + suites) do registro atual
 
+    addl	$168, %eax              # eax <- endereco simples; desloca para a quantidade de quartos simples
+    movl    4(%eax), %ebx           # ebx <- endereco suites; desloca para a quantidade de suites
+    addl    %ebx, %eax              # eax <- eax + ebx; soma os dois
+
+    movl    qtd_quartos, %ebx       # ebx <- qtd_quartos; para fazer a comparacao
+
+    cmpl	%ebx, %eax              # qtd_quartos inserir <= qtd_quartos atual ? achou pos  
+    jge     inserir_na_pos
+
+    # prev_reg_addr <- next_reg_addr; Salva next_reg_addr em prev_reg_addr
+    movl    next_reg_addr, %ebx
+    movl    %ebx, next_reg_addr
+
+    # next_reg_addr <- proximo; calcula proximo registro da lista 
     movl    (%eax), %ebx
     movl    %ebx, next_reg_addr
-    
-    addl	$168, %eax
-    movl    4(%eax), %ebx
-    addl    %ebx, %eax
-
-    cmpl	$qtd_quartos, %eax
-    jg      inserir_na_pos
-
-    movl    next_reg_addr, %eax
 
     jmp     proximo_ordenar
 
