@@ -269,7 +269,7 @@ pedir:
 
     RET
 
-## Le uma string do novo registro
+# Le uma string do novo registro
 ler_str:
     # Define fonte (reg_str) e destino (regs_lst_cur) para escrita de nome no registro
     leal    reg_str, %esi              
@@ -280,52 +280,58 @@ ler_str:
     movl    qtd_bytes, %ecx 
     rep     movsb
 
-    addl    qtd_bytes, %eax
-    addl    %eax, offset
+    call deslocar
 
     RET
 
-## Le um numero do novo registro
+# Le um numero do novo registro
 ler_num:             
     movl    cur_reg_addr, %edi
     addl    offset, %edi
 
     movl    $num_value, (%edi)
 
+    call deslocar
+    
+    RET
+
+# Desloca offset no registro que esta sendo inserido
+deslocar:
+    movl    $0, %eax
     addl    qtd_bytes, %eax
     addl    %eax, offset
-    
+
     RET
 
 # Posiciona registro alocado na pos da lista segundo o num de quartos (simples + suites)
 ordenar:
-    movl    regs_lst_first, %edx
+    movl    regs_lst_first, %eax
 
-    leal    regs_lst_first, %eax
-    movl    %eax, prev_reg_addr
-    movl    %edx, next_reg_addr
+    leal    regs_lst_first, %ebx
+    movl    %ebx, prev_reg_addr
+    movl    %eax, next_reg_addr
 
-    proximo_procurar:
-    cmpl	$0, %edx
+    proximo_ordenar:
+    cmpl	$0, %eax
     je      inserir_na_pos
 
-    movl	168(%edx), %edx
-    addl	$4, %edx
+    # Quantidade de quartos (simples + suites) do registro atual
+    movl    next_reg_addr, %ebx
+    movl    %ebx, prev_reg_addr
 
-    cmpl	$qtd_quartos, %edx
+    movl    (%eax), %ebx
+    movl    %ebx, next_reg_addr
+    
+    addl	$168, %eax
+    movl    4(%eax), %ebx
+    addl    %ebx, %eax
+
+    cmpl	$qtd_quartos, %eax
     jg      inserir_na_pos
 
-    movl    (%edx), %eax
-    movl    %eax, %edx
+    movl    next_reg_addr, %eax
 
-    jmp     proximo_inserir
-
-    movl    $next_reg_addr, prev_reg_addr
-    movl    (%edx), %eax
-    movl    %eax, next_reg_addr
-    movl    next_reg_addr, %edx
-
-    jmp     inserir_na_pos
+    jmp     proximo_ordenar
 
     inserir_na_pos:
     movl    cur_reg_addr, %eax
