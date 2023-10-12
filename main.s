@@ -41,6 +41,7 @@
     qtd_bytes:      .int    0       # Quantidade de bytes lidos
     num_value:      .int    0       # Valor de um campo numerico do registro
     qtd_quartos:    .int    0       # Quantidade de quartos (simples + suites) no novo registro
+    cont_remover:   .int    0       # Contador da pos para remover registro
 
     tam_reg:        .int    184
 
@@ -64,6 +65,7 @@
     pede_simples:   .asciz  "Simples: "
     pede_suites:    .asciz  "Suites: "
     pede_aluguel:   .asciz  "Aluguel: "
+    pede_remover:   .asciz  "Pos: "
 
     str_terminator: .asciz  "\0"
 
@@ -294,6 +296,11 @@ ler_str:
 
     RET
 
+# Le um booleano do novo registro
+ler_bool:
+    cmpb	$'s',%al
+	je		_start
+
 # Le um numero do novo registro
 ler_num:             
     movl    cur_reg_addr, %eax
@@ -364,15 +371,57 @@ ordenar:
 
 ## Remoção de cadastro em memória
 remover:
-    movl    $2, %eax
+    # %eax <- endereco de regs_lst_first
+    leal    regs_lst_first, %eax
+    movl    %eax, cur_reg_addr
 
-    pushl   %eax
-	pushl   $teste
-	call    printf
+    # Print e scanf da pos a remover
+    pushl   $pede_remover
+    call    printf
 
-    addl    $8, %esp
+    pushl   $cont_remover
+    pushl   $tipo_int
+    call    scanf
+
+    loop_remover:                   # loop para caminhar por elementos
+    movl    cur_reg_addr, %eax
+    cmpl    $0, (%eax)
+    je      pos_invalida
+
+    cmpl    $0, cont_remover        # verifica posicao a remover
+    je      remocao                 # se pos correta, pula para remocao
+
+    decl    cont_remover
+
+    # pula para proximo registro
+    movl    cur_reg_addr, %eax  
+    movl    (%eax), %ebx
+    movl    %ebx, cur_reg_addr
+
+    jmp     loop_remover
+
+    remocao:                        # remocao de fato  
+    movl    cur_reg_addr, %eax      # %eax <- cur_reg_addr - pos anterior a removida
+    movl    (%eax), %edx            # %edx <- cur_reg_addr + 1 pos
+    movl    (%edx), %ebx            # %ebx <- cur_reg_addr + 2 pos
+
+    movl    %ebx, (%eax)            # conecta cur_reg_addr com cur_reg_addr + 2 e pula cur_reg_addr + 1
+
+    # remove pos %edx
+    pushl   %edx
+    call    free
+
+    addl    $16, %esp
 
     RET
+
+    pos_invalida:
+    addl    $12, %esp
+
+    RET
+
+
+########## Consulta ##########
 
 ## Consulta de cadastro em memória
 consultar:
@@ -481,3 +530,5 @@ mostrar_reg:
     movl    %eax, cur_reg_addr      # Move pos atual da lista a regs_lst_cur
 
     RET
+
+
