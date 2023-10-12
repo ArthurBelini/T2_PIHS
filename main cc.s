@@ -24,8 +24,11 @@
 .section .data
     ## Struct de registro
     reg_str:        .space  50      # Nome, cidade e bairro
+
     reg_bool:       .byte   1       # Tipo e garagem
+
     reg_int:        .int    0       # Quantidade de quartos simples, suites e metragem
+
     reg_float:      .float  0.0     # Aluguel
 
     ## Auxiliares
@@ -38,7 +41,6 @@
     qtd_bytes:      .int    0       # Quantidade de bytes lidos
     num_value:      .int    0       # Valor de um campo numerico do registro
     qtd_quartos:    .int    0       # Quantidade de quartos (simples + suites) no novo registro
-    cont:           .int    0       # Contador da pos para remover registro
 
     tam_reg:        .int    184
 
@@ -62,20 +64,10 @@
     pede_simples:   .asciz  "Simples: "
     pede_suites:    .asciz  "Suites: "
     pede_aluguel:   .asciz  "Aluguel: "
-    pede_remover:   .asciz  "Pos: "
 
-    mostra_nome:    .asciz  "Nome: %s\n"
-    mostra_cidade:  .asciz  "Cidade: %s\n"
-    mostra_bairro:  .asciz  "Bairro: %s\n"
-    mostra_celular: .asciz  "Celular: %s\n"
-    mostra_tipo:    .asciz  "Tipo: %d\n"
-    mostra_garagem: .asciz  "Garagem: %d\n"
-    mostra_simples: .asciz  "Simples: %d\n"
-    mostra_suites:  .asciz  "Suites: %d\n"
-    mostra_metragem:.asciz  "Metragem: %d\n"
-    mostra_aluguel: .asciz  "Aluguel: %f\n"
+    str_terminator: .asciz  "\0"
 
-    mostra_id:      .asciz  "%d.\n"    
+    teste: 	        .asciz  "%d\n"
 
 .section .text
 
@@ -212,8 +204,7 @@ inserir:
 
     call    ler_num
 
-    movl    reg_int, %eax
-    addl    %eax, qtd_quartos
+    addl    $reg_int, qtd_quartos
 
     # Leitura da quantidade de suites
     pushl	$reg_int  
@@ -225,8 +216,7 @@ inserir:
 
     call    ler_num
 
-    movl    reg_int, %eax
-    addl    %eax, qtd_quartos
+    addl    $reg_int, qtd_quartos
 
     # Leitura da metragem
     pushl	$reg_int  
@@ -302,11 +292,6 @@ ler_str:
 
     RET
 
-# Le um booleano do novo registro
-#ler_bool:
-#    cmpb	$'s',%al
-#	je		_start
-
 # Le um numero do novo registro
 ler_num:             
     movl    cur_reg_addr, %eax
@@ -339,22 +324,18 @@ ordenar:
 
     ## Calcula quantidade de quartos (simples + suites) do registro atual
 
-    # Calcula posicao da quantidade de quartos simples (%eax) e suites (%ebx)
-    addl	$168, %eax
+    addl	$168, %eax              # eax <- endereco simples; desloca para a quantidade de quartos simples
+    movl    4(%eax), %ebx           # ebx <- endereco suites; desloca para a quantidade de suites
+    addl    %ebx, %eax              # eax <- eax + ebx; soma os dois
 
-    movl    4(%eax), %ebx
+    movl    qtd_quartos, %ebx       # ebx <- qtd_quartos; para fazer a comparacao
 
-    # Compara %eax com %ebx
-    addl    (%eax), %ebx
-
-    movl    qtd_quartos, %eax
-
-    cmpl	%eax, %ebx              # %ebx >= %eax ?, %eax - qtd_quartos_inserir, %ebx - qtd_quartos_atual
+    cmpl	%ebx, %eax              # qtd_quartos inserir <= qtd_quartos atual ? achou pos  
     jge     inserir_na_pos
 
     # prev_reg_addr <- next_reg_addr; Salva next_reg_addr em prev_reg_addr
-    movl    next_reg_addr, %eax
-    movl    %eax, prev_reg_addr
+    movl    next_reg_addr, %ebx
+    movl    %ebx, next_reg_addr
 
     # next_reg_addr <- proximo; calcula proximo registro da lista 
     movl    (%eax), %ebx
@@ -377,101 +358,61 @@ ordenar:
 
 ## Remoção de cadastro em memória
 remover:
-    # %eax <- endereco de regs_lst_first
-    leal    regs_lst_first, %eax
-    movl    %eax, cur_reg_addr
+    movl    $2, %eax
 
-    # Print e scanf da pos a remover
-    pushl   $pede_remover
-    call    printf
+    pushl   %eax
+	pushl   $teste
+	call    printf
 
-    pushl   $cont
-    pushl   $tipo_int
-    call    scanf
-
-    loop_remover:                   # loop para caminhar por elementos
-    movl    cur_reg_addr, %eax
-    cmpl    $0, (%eax)
-    je      pos_invalida
-
-    cmpl    $0, cont                # verifica posicao a remover
-    je      remocao                 # se pos correta, pula para remocao
-
-    decl    cont
-
-    # pula para proximo registro
-    movl    cur_reg_addr, %eax  
-    movl    (%eax), %ebx
-    movl    %ebx, cur_reg_addr
-
-    jmp     loop_remover
-
-    remocao:                        # remocao de fato  
-    movl    cur_reg_addr, %eax      # %eax <- cur_reg_addr - pos anterior a removida
-    movl    (%eax), %edx            # %edx <- cur_reg_addr + 1 pos
-    movl    (%edx), %ebx            # %ebx <- cur_reg_addr + 2 pos
-
-    movl    %ebx, (%eax)            # conecta cur_reg_addr com cur_reg_addr + 2 e pula cur_reg_addr + 1
-
-    # remove pos %edx
-    pushl   %edx
-    call    free
-
-    addl    $16, %esp
+    addl    $8, %esp
 
     RET
-
-    pos_invalida:
-    addl    $12, %esp
-
-    RET
-
-########## Listagem ##########
-## Relatório de cadastros em memória
-listar:
-    movl    $0, cont
-
-    # %eax <- endereco de regs_lst_first
-    movl    regs_lst_first, %eax
-    movl    %eax, cur_reg_addr
-
-    proximo_listar:
-    # Verifica se ha mais registros para listar
-    movl    cur_reg_addr, %eax
-
-    cmpl    $0, %eax
-    je      fim_listar
-
-    # Mostra registro
-    call    mostrar_reg
-
-    # Vai para prox registro
-    movl    cur_reg_addr, %eax  
-    movl    (%eax), %ebx
-    movl    %ebx, cur_reg_addr
-
-    # Vai para prox iteracao
-    jmp     proximo_listar
-
-    fim_listar:
-
-    RET
-
-
-########## Consulta ##########
 
 ## Consulta de cadastro em memória
 consultar:
+    movl    $3, %eax
+
+    pushl   %eax
+	pushl   $teste
+	call    printf
+
+    addl    $8, %esp
 
     RET
 
 ## Gravação de cadastro em disco
 gravar:
+    movl    $4, %eax
+
+    pushl   %eax
+	pushl   $teste
+	call    printf
+
+    addl    $8, %esp
 
     RET
 
 ## Recuperação de cadastro em disco
 recuperar:
+    movl    $5, %eax
+
+    pushl   %eax
+	pushl   $teste
+	call    printf
+
+    addl    $8, %esp
+
+    RET
+
+## Relatório de cadastros em memória
+listar:
+    movl    $6, %eax
+
+    pushl   %eax
+	pushl   $teste
+	call    printf
+
+    addl    $8, %esp
 
     RET
 
@@ -510,80 +451,27 @@ fim:
 ########## Auxiliares ##########
 
 mostrar_reg:
-    movl    cur_reg_addr, %esi
+    leal    regs_lst_first, %edx    # Move endereço de regs_lst para %edx
 
-    addl    $4, %esi
+    proximo_inserir:
+    cmpl	$0, (%edx)              # 0 representa fim da lista
+    je      fim_lst_alocar          # Caso 0, pula para alocar
 
-    # Mostra id do registro
-    pushl   cont
-    pushl   $mostra_id
-    call    printf
+    movl    (%edx), %eax            # Move valor no endereço em %edx para %eax
+    movl    %eax, %edx              # Move valor de %eax para %edx
 
-    # Mostra nome
-    pushl   %esi
-    pushl   $mostra_nome
-    call    printf
-    addl    $50, %esi
+    jmp     proximo_inserir
 
-    # Mostra cidade
-    pushl   %esi
-    pushl   $mostra_cidade
-    call    printf
-    addl    $50, %esi
+    fim_lst_alocar:
+    pushl   %edx                    # Backup de %edx
+    pushl   tam_reg
+    call    malloc
 
-    # Mostra bairro
-    pushl   %esi
-    pushl   $mostra_bairro
-    call    printf
-    addl    $50, %esi
+    addl    $4, %esp                # Retira tam_reg da pilha
+    popl    %edx                    # Recuperar %edx
+    movl    $0, (%eax)              # Move 0 para o endereço do valor de %eax
+    movl    %eax, (%edx)            # Move endereço em %eax para endereço do valor de %edx
 
-    # Mostra celular
-    pushl   %esi
-    pushl   $mostra_celular
-    call    printf
-    addl    $12, %esi
-
-    # Mostra tipo
-    pushl   %esi
-    pushl   $mostra_tipo
-    call    printf
-    addl    $1, %esi
-
-    # Mostra garagem
-    pushl   %esi
-    pushl   $mostra_garagem
-    call    printf
-    addl    $1, %esi
-
-    # Mostra quantidade de quartos simples
-    pushl   (%esi)
-    pushl   $mostra_simples
-    call    printf
-    addl    $4, %esi
-
-    # Mostra quantiade de suites
-    pushl   (%esi)
-    pushl   $mostra_suites
-    call    printf
-    addl    $4, %esi
-
-    # Mostra metragem
-    pushl   (%esi)
-    pushl   $mostra_metragem
-    call    printf
-    addl    $4, %esi
-
-    # Mostra aluguel
-    break1:
-    flds    (%esi)
-    fstpl   (%esp)
-    pushl   $mostra_aluguel
-    call    printf
-
-    incl    cont
-
-    addl    $88, %esp               # 11 x 2 x 4 = 88
+    movl    %eax, cur_reg_addr      # Move pos atual da lista a regs_lst_cur
 
     RET
-
-
