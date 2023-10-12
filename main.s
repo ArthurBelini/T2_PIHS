@@ -24,7 +24,7 @@
 .section .data
     ## Struct de registro
     reg_str:        .space  50      # Nome, cidade e bairro
-    reg_bool:       .byte   1       # Tipo e garagem
+    reg_bool:       .byte   0       # Tipo e garagem
     reg_int:        .int    0       # Quantidade de quartos simples, suites e metragem
     reg_float:      .float  0.0     # Aluguel
 
@@ -577,14 +577,22 @@ mostrar_reg:
     call    printf
     addl    $12, %esi
 
+    break1:
+
     # Mostra tipo
-    pushl   %esi
+    movl    (%esi), %eax
+
+    movzbl  %al, %eax
+    pushl   %eax
     pushl   $mostra_tipo
     call    printf
     addl    $1, %esi
 
     # Mostra garagem
-    pushl   %esi
+    movl    (%esi), %eax
+
+    movzbl  %al, %eax
+    pushl   %eax
     pushl   $mostra_garagem
     call    printf
     addl    $1, %esi
@@ -608,7 +616,6 @@ mostrar_reg:
     addl    $4, %esi
 
     # Mostra aluguel
-    break1:
     flds    (%esi)
     fstpl   (%esp)
     pushl   $mostra_aluguel
