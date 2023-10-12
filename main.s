@@ -39,6 +39,7 @@
     num_value:      .int    0       # Valor de um campo numerico do registro
     qtd_quartos:    .int    0       # Quantidade de quartos (simples + suites) no novo registro
     cont:           .int    0       # Contador da pos para remover registro
+    filtrar:        .int    0       # 0 - não filtrar listagem, 1 - filtar (consulta)
 
     tam_reg:        .int    184
 
@@ -63,6 +64,7 @@
     pede_suites:    .asciz  "Suites: "
     pede_aluguel:   .asciz  "Aluguel: "
     pede_remover:   .asciz  "Pos: "
+    pede_consultar: .asciz  "Qtd quartos: "
 
     mostra_nome:    .asciz  "Nome: %s\n"
     mostra_cidade:  .asciz  "Cidade: %s\n"
@@ -73,7 +75,7 @@
     mostra_simples: .asciz  "Simples: %d\n"
     mostra_suites:  .asciz  "Suites: %d\n"
     mostra_metragem:.asciz  "Metragem: %d\n"
-    mostra_aluguel: .asciz  "Aluguel: %f\n"
+    mostra_aluguel: .asciz  "Aluguel: %.2f\n"
 
     mostra_id:      .asciz  "%d.\n"    
 
@@ -442,13 +444,31 @@ listar:
     cmpl    $0, %eax
     je      fim_listar
 
+    # Filtragem de quantidade de quartos diferentes
+    cmpl    $0, filtrar
+    je      nao_filtrar
+
+    movl    cur_reg_addr, %eax
+    movl    168(%eax), %ebx
+    movl    172(%eax), %ecx
+    addl    %ecx, %ebx
+
+    cmpl    qtd_quartos, %ebx
+    jne     filtro
+
+    nao_filtrar:
+
     # Mostra registro
     call    mostrar_reg
+
+    filtro:
 
     # Vai para prox registro
     movl    cur_reg_addr, %eax  
     movl    (%eax), %ebx
     movl    %ebx, cur_reg_addr
+
+    incl    cont
 
     # Vai para prox iteracao
     jmp     proximo_listar
@@ -462,6 +482,20 @@ listar:
 
 ## Consulta de cadastro em memória
 consultar:
+    movl    $1, filtrar             # ativa filtro por quantidade de quartos
+
+    pushl   $pede_consultar
+    call    printf
+
+    pushl   $qtd_quartos
+    pushl   $tipo_int
+    call    scanf
+
+    call    listar
+
+    movl    $0, filtrar             # remove filtro para execucoes posteriores
+
+    addl    $12, %esp               # 1 (printf) + 2 (scanf)
 
     RET
 
@@ -580,9 +614,7 @@ mostrar_reg:
     pushl   $mostra_aluguel
     call    printf
 
-    incl    cont
-
-    addl    $88, %esp               # 11 x 2 x 4 = 88
+    addl    $84, %esp               # 11 x 2 x 4 = 84
 
     RET
 
