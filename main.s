@@ -204,7 +204,8 @@ inserir:
 
     call    ler_num
 
-    addl    $reg_int, qtd_quartos
+    movl    reg_int, %eax
+    addl    %eax, qtd_quartos
 
     # Leitura da quantidade de suites
     pushl	$reg_int  
@@ -216,7 +217,8 @@ inserir:
 
     call    ler_num
 
-    addl    $reg_int, qtd_quartos
+    movl    reg_int, %eax
+    addl    %eax, qtd_quartos
 
     # Leitura da metragem
     pushl	$reg_int  
@@ -324,18 +326,22 @@ ordenar:
 
     ## Calcula quantidade de quartos (simples + suites) do registro atual
 
-    addl	$168, %eax              # eax <- endereco simples; desloca para a quantidade de quartos simples
-    movl    4(%eax), %ebx           # ebx <- endereco suites; desloca para a quantidade de suites
-    addl    %ebx, %eax              # eax <- eax + ebx; soma os dois
+    # Calcula posicao da quantidade de quartos simples (%eax) e suites (%ebx)
+    addl	$168, %eax
 
-    movl    qtd_quartos, %ebx       # ebx <- qtd_quartos; para fazer a comparacao
+    movl    4(%eax), %ebx
 
-    cmpl	%ebx, %eax              # qtd_quartos inserir <= qtd_quartos atual ? achou pos  
+    # Compara %eax com %ebx
+    addl    (%eax), %ebx
+
+    movl    qtd_quartos, %eax
+
+    cmpl	%eax, %ebx              # %ebx >= %eax ?, %eax - qtd_quartos_inserir, %ebx - qtd_quartos_atual
     jge     inserir_na_pos
 
     # prev_reg_addr <- next_reg_addr; Salva next_reg_addr em prev_reg_addr
-    movl    next_reg_addr, %ebx
-    movl    %ebx, next_reg_addr
+    movl    next_reg_addr, %eax
+    movl    %eax, prev_reg_addr
 
     # next_reg_addr <- proximo; calcula proximo registro da lista 
     movl    (%eax), %ebx
