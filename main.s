@@ -322,7 +322,6 @@ ler_bool:
     cmpb	$1, %al
 	je		opcao_valida
 
-    pushl   erro_bool
     jmp     fim_erro
 
     opcao_valida:
@@ -492,7 +491,6 @@ gravar:
 
     # Test de erro de abertura de arquivo
     test    %eax, %eax
-    pushl   erro_filewrite
     js      fim_erro
 
     movl    %eax, filehandle        # Move ponteiro para arquivo em filehandle
@@ -528,14 +526,13 @@ gravar:
     movl    filehandle, %ebx
     int     $0x80
 
-    addl    $4, %esp
-
     fim_gravar:
     RET
 
 ## Recuperação de cadastro em disco
 recuperar:
-    call    liberar
+    # Ao recuperar, os registros em memoria sao deletados; comentar esta linha para isso nao acontecer
+    call    liberar                 
 
     ## Abrir arquivo para escrita
 
@@ -550,7 +547,6 @@ recuperar:
 
     # Test de erro de abertura de arquivo
     test    %eax, %eax
-    pushl   erro_fileread
     js      fim_erro
 
     movl    %eax, filehandle        # Move ponteiro para arquivo em filehandle
@@ -705,10 +701,6 @@ ordenar:
     RET
 
 fim_erro:
-    # Mostra mensagem de erro
-    call    printf
-    addl    $4, %esp
-
     call    liberar                    # Libera lista de registros
 
     movl    $1, %eax                   # eax <- sair
