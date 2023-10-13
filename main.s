@@ -40,6 +40,7 @@
     qtd_quartos:    .int    0       # Quantidade de quartos (simples + suites) no novo registro
     cont:           .int    0       # Contador da pos para remover registro
     filtrar:        .int    0       # 0 - não filtrar listagem, 1 - filtar (consulta)
+    displs:         .int    0       # Ponteiro para deslocamentos de campos do registro
 
     tam_reg:        .int    184
 
@@ -65,7 +66,6 @@
     pede_aluguel:   .asciz  "Aluguel: "
     pede_remover:   .asciz  "Pos: "
     pede_consultar: .asciz  "Qtd quartos: "
-
     mostra_nome:    .asciz  "Nome: %s\n"
     mostra_cidade:  .asciz  "Cidade: %s\n"
     mostra_bairro:  .asciz  "Bairro: %s\n"
@@ -76,12 +76,18 @@
     mostra_suites:  .asciz  "Suites: %d\n"
     mostra_metragem:.asciz  "Metragem: %d\n"
     mostra_aluguel: .asciz  "Aluguel: %.2f\n"
-    mostra_casa: .asciz  "casa"
-    mostra_apto: .asciz  "apto."
-    mostra_sem: .asciz  "nao"
-    mostra_com: .asciz  "sim"
+    mostra_casa:    .asciz  "casa"
+    mostra_apto:    .asciz  "apto."
+    mostra_sem:     .asciz  "nao"
+    mostra_com:     .asciz  "sim"
+    erro_bool:      .asciz  "Opcao booleana invalida"
+    regs_filename:  .asciz  "registros.txt"
+    erro_filewrite: .asciz  "Erro ao escrever em arquivo"
 
     mostra_id:      .asciz  "%d.\n"    
+
+.section .bss
+    .lcomm filehandle, 4
 
 .section .text
 
@@ -89,6 +95,52 @@
 
 ## Chama funções principais
 _start:
+    # Alocar 40 bytes (10 ints) da pos de cada campo do registro
+    #pushl   $40                                
+    #call    free
+    #movl    %eax, displs
+
+    # Nome
+    #movl    $4, %eax
+    #addl,   $4, %eax
+
+    # Cidade
+    #movl    $54, %eax
+    #addl,   $4, %eax
+
+    # Bairro
+    #movl    $104, %eax
+    #addl,   $4, %eax
+
+    # Celular
+    #movl    $154, %eax
+    #addl,   $4, %eax
+
+    # Tipo
+    #movl    $166, %eax
+    #addl,   $4, %eax
+
+    # Garagem
+    #movl    $167, %eax
+    #addl,   $4, %eax
+
+    # Simples
+    #movl    $168, %eax
+    #addl,   $4, %eax
+
+    # Suites
+    #movl    $172, %eax
+    #addl,   $4, %eax
+
+    # Metragem
+    #movl    $176, %eax
+    #addl,   $4, %eax
+
+    # Aluguel
+    #movl    $180, %eax
+    #addl,   $4, %eax
+
+    menus_opcoes:
     call    menu                    # Recebe opcao
 
     call    tratar_opcoes           # Executa opcao
@@ -96,7 +148,7 @@ _start:
     pushl	$jmp_line               # Pula uma linha
 	call	printf
 
-    jmp     _start
+    jmp     menus_opcoes
 
 ## Imprimir menu e recebe opcao
 menu:
@@ -317,6 +369,7 @@ ler_bool:
     cmpb	$1, %al
 	je		opcao_valida
 
+    pushl   erro_bool
     jmp     fim_erro
 
     opcao_valida:
@@ -522,7 +575,62 @@ consultar:
 
 ## Gravação de cadastro em disco
 gravar:
+    # Verifica se ha elementos, se nao, termina
+    cmpl    $0, regs_lst_first
+    je      fim_gravar
 
+    ## Abrir arquivo para leitura
+
+    # Setando flags
+    movl    $5, %eax                # Flag para system call para abrir arquivos
+    movl    $regs_filename, %ebx    # Ponteiro ao arquivo de nome regs_filename
+    movl    $0101, %ecx             # Cria se nao existe; somente para escrita
+    movl    $0666, %edx             # Permissao de execucao escrita para geral
+
+    # Chamada de sistema
+    int     $0x80                   # Chamada de sistema
+
+    # Test de erro de abertura de arquivo
+    test    %eax, %eax
+    pushl   erro_filewrite
+    js      fim_erro
+
+    movl    %eax, filehandle        # Move ponteiro para arquivo em filehandle
+
+    # Loop pelos registros
+    movl    regs_lst_first, %eax
+    movl    %eax, cur_reg_addr
+
+    proximo_gravar:
+    cmpl    $0, cur_reg_addr
+    je      fechar_arquivo
+
+    movl    cur_reg_addr, %ecx
+    addl    $4, %ecx
+
+    movl    $4, %eax                # Flag de escrita em arquivo
+    movl    filehandle, %ebx        # ebx <- filehandle
+    movl    $180, %edx
+    int     $0x80
+    test    %eax, %eax
+    js      fim_erro
+
+    # Ir para proximo registro
+    movl    cur_reg_addr, %eax
+    movl    (%eax), %ebx
+    movl    %ebx, cur_reg_addr
+
+    jmp     proximo_gravar
+
+    # Fechar arquivo
+    fechar_arquivo:
+    movl    $6, %eax
+    movl    filehandle, %ebx
+    int     $0x80
+
+    addl    $4, %esp
+
+    fim_gravar:
     RET
 
 ## Recuperação de cadastro em disco
@@ -558,17 +666,21 @@ fim:
     call liberar                    # Libera lista de registros
                
     movl $1, %eax                   # eax <- sair
-    movl $0, %ebx                  # ebx <- saída sem erro
+    movl $0, %ebx                   # ebx <- saída sem erro
     int $0x80                       # Chamada de sistema
 
 ########## Auxiliares ##########
 
 fim_erro:
-    call liberar                    # Libera lista de registros
-               
-    movl $1, %eax                   # eax <- sair
-    movl $1, %ebx                  # ebx <- saída sem erro
-    int $0x80                       # Chamada de sistema
+    # Mostra mensagem de erro
+    call    printf
+    addl    $4, %esp
+
+    call    liberar                    # Libera lista de registros
+
+    movl    $1, %eax                   # eax <- sair
+    movl    $1, %ebx                    # ebx <- saída sem erro
+    int     $0x80                       # Chamada de sistema
 
 mostrar_reg:
     movl    cur_reg_addr, %esi
