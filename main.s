@@ -40,7 +40,7 @@
     qtd_quartos:    .int    0       # Quantidade de quartos (simples + suites) no novo registro
     cont:           .int    0       # Contador da pos para remover registro
     filtrar:        .int    0       # 0 - não filtrar listagem, 1 - filtar (consulta)
-    displs:         .int    0       # Ponteiro para deslocamentos de campos do registro
+    read_buffer:    .space  180     # Buffer de leitura de registro de arquivo
 
     tam_reg:        .int    184
 
@@ -83,6 +83,7 @@
     erro_bool:      .asciz  "Opcao booleana invalida"
     regs_filename:  .asciz  "registros.txt"
     erro_filewrite: .asciz  "Erro ao escrever em arquivo"
+    erro_fileread: .asciz  "Erro ao ler arquivo"
 
     mostra_id:      .asciz  "%d.\n"    
 
@@ -95,51 +96,6 @@
 
 ## Chama funções principais
 _start:
-    # Alocar 40 bytes (10 ints) da pos de cada campo do registro
-    #pushl   $40                                
-    #call    free
-    #movl    %eax, displs
-
-    # Nome
-    #movl    $4, %eax
-    #addl,   $4, %eax
-
-    # Cidade
-    #movl    $54, %eax
-    #addl,   $4, %eax
-
-    # Bairro
-    #movl    $104, %eax
-    #addl,   $4, %eax
-
-    # Celular
-    #movl    $154, %eax
-    #addl,   $4, %eax
-
-    # Tipo
-    #movl    $166, %eax
-    #addl,   $4, %eax
-
-    # Garagem
-    #movl    $167, %eax
-    #addl,   $4, %eax
-
-    # Simples
-    #movl    $168, %eax
-    #addl,   $4, %eax
-
-    # Suites
-    #movl    $172, %eax
-    #addl,   $4, %eax
-
-    # Metragem
-    #movl    $176, %eax
-    #addl,   $4, %eax
-
-    # Aluguel
-    #movl    $180, %eax
-    #addl,   $4, %eax
-
     menus_opcoes:
     call    menu                    # Recebe opcao
 
@@ -270,9 +226,6 @@ inserir:
 
     call    ler_num
 
-    movl    reg_int, %eax
-    addl    %eax, qtd_quartos
-
     # Leitura da quantidade de suites
     pushl	$reg_int  
     pushl	$tipo_int 
@@ -283,8 +236,8 @@ inserir:
 
     call    ler_num
 
-    movl    reg_int, %eax
-    addl    %eax, qtd_quartos
+    # Calcula quantidade de quartos (simples + suites)
+    call    calc_qtd_quartos
 
     # Leitura da metragem
     pushl	$reg_int  
@@ -394,59 +347,6 @@ ler_num:
     movl    qtd_bytes, %eax
     addl    %eax, offset
     
-    RET
-
-# Posiciona registro alocado na pos da lista segundo o num de quartos (simples + suites)
-ordenar:
-    # Inicializacao
-    # prev_reg_addr <- endereco do ponteiro para primeiro endereco da lista
-    # next_reg_addr <- endereco do primeiro registro ou 0 (lista vazia)
-    leal    regs_lst_first, %eax
-    movl    regs_lst_first, %ebx
-
-    movl    %eax, prev_reg_addr
-    movl    %ebx, next_reg_addr
-
-    proximo_ordenar:
-    movl    next_reg_addr, %eax
-
-    cmpl	$0, %eax
-    je      inserir_na_pos
-
-    ## Calcula quantidade de quartos (simples + suites) do registro atual
-
-    # Calcula posicao da quantidade de quartos simples (%eax) e suites (%ebx)
-    addl	$168, %eax
-
-    movl    4(%eax), %ebx
-
-    # Compara %eax com %ebx
-    addl    (%eax), %ebx
-
-    movl    qtd_quartos, %eax
-
-    cmpl	%eax, %ebx              # %ebx >= %eax ?, %eax - qtd_quartos_inserir, %ebx - qtd_quartos_atual
-    jge     inserir_na_pos
-
-    # prev_reg_addr <- next_reg_addr; Salva next_reg_addr em prev_reg_addr
-    movl    next_reg_addr, %eax
-    movl    %eax, prev_reg_addr
-
-    # next_reg_addr <- proximo; calcula proximo registro da lista 
-    movl    (%eax), %ebx
-    movl    %ebx, next_reg_addr
-
-    jmp     proximo_ordenar
-
-    inserir_na_pos:
-    movl    cur_reg_addr, %eax
-
-    movl    prev_reg_addr, %ebx
-    movl    %eax, (%ebx)
-
-    movl    next_reg_addr, %ebx
-    movl    %ebx, (%eax)
-
     RET
 
 ########## Remoção ##########
@@ -603,7 +503,7 @@ gravar:
 
     proximo_gravar:
     cmpl    $0, cur_reg_addr
-    je      fechar_arquivo
+    je      fechar_arquivo_gravar
 
     movl    cur_reg_addr, %ecx
     addl    $4, %ecx
@@ -623,7 +523,7 @@ gravar:
     jmp     proximo_gravar
 
     # Fechar arquivo
-    fechar_arquivo:
+    fechar_arquivo_gravar:
     movl    $6, %eax
     movl    filehandle, %ebx
     int     $0x80
@@ -635,6 +535,91 @@ gravar:
 
 ## Recuperação de cadastro em disco
 recuperar:
+    call    liberar
+
+    ## Abrir arquivo para escrita
+
+    # Setando flags
+    movl    $5, %eax                # Flag para system call para abrir arquivos
+    movl    $regs_filename, %ebx    # Ponteiro ao arquivo de nome regs_filename
+    movl    $0100, %ecx             # Cria se nao existe; somente para leitura
+    movl    $0555, %edx             # Permissao de execucao leitura para geral
+
+    # Chamada de sistema
+    int     $0x80                   # Chamada de sistema
+
+    # Test de erro de abertura de arquivo
+    test    %eax, %eax
+    pushl   erro_fileread
+    js      fim_erro
+
+    movl    %eax, filehandle        # Move ponteiro para arquivo em filehandle
+
+    # Loop de leitura de registros
+    proximo_recuperar:
+    movl    $read_buffer, %ecx
+
+    movl    $3, %eax                # Flag de leirura de arquivo
+    movl    filehandle, %ebx        # ebx <- filehandle
+    movl    $180, %edx
+    int     $0x80
+
+    # Verifica se chegou no fim do arquivo
+    cmpl    $0, %eax
+    jle     fechar_arquivo_recuperar
+
+    # Alocar novo registro
+    call    alocar
+
+    break1:
+
+    movl    %eax, cur_reg_addr
+    addl    $4, %eax                # Deslocar para posicao de dados
+
+    leal    read_buffer, %esi       # Fonte de dados
+    movl    %eax, %edi              # Destino de dados
+
+    movl    $180, %ecx               # 180 bytes a sere, passados para o registro em memoria
+    
+    rep     movsb
+
+    call    calc_qtd_quartos
+
+    call    ordenar
+
+    jmp     proximo_recuperar
+
+    # Fechar arquivo
+    fechar_arquivo_recuperar:
+    movl    $6, %eax
+    movl    filehandle, %ebx
+    int     $0x80
+
+    addl    $4, %esp
+
+    RET
+
+## Saída do programa
+fim:
+    call liberar                    # Libera lista de registros
+               
+    movl $1, %eax                   # eax <- sair
+    movl $0, %ebx                   # ebx <- saída sem erro
+    int $0x80                       # Chamada de sistema
+
+########## Auxiliares ##########
+
+# Calcula quantidade de quartos (simples + suites) do endereco em cur_reg_addr
+calc_qtd_quartos:
+    movl    cur_reg_addr, %eax
+
+    addl	$168, %eax
+
+    movl    4(%eax), %ebx
+
+    addl    (%eax), %ebx
+
+    movl    %ebx, qtd_quartos
 
     RET
 
@@ -652,24 +637,72 @@ liberar:
 
     pushl   %edx                    # Endereço de %edx que se deseja liberar para pilha
     call    free
-    addl    $4, %esp
+    break2:
 
     movl    %ebx, %edx              # Recupera prox pos da lista
+
+    addl    $4, %esp
 
     jmp     proximo_liberar
 
     fim_lst_liberar:
+
+    movl    $0, regs_lst_first
+
     RET
 
-## Saída do programa
-fim:
-    call liberar                    # Libera lista de registros
-               
-    movl $1, %eax                   # eax <- sair
-    movl $0, %ebx                   # ebx <- saída sem erro
-    int $0x80                       # Chamada de sistema
+# Posiciona registro alocado na pos da lista segundo o num de quartos (simples + suites)
+ordenar:
+    # Inicializacao
+    # prev_reg_addr <- endereco do ponteiro para primeiro endereco da lista
+    # next_reg_addr <- endereco do primeiro registro ou 0 (lista vazia)
+    leal    regs_lst_first, %eax
+    movl    regs_lst_first, %ebx
 
-########## Auxiliares ##########
+    movl    %eax, prev_reg_addr
+    movl    %ebx, next_reg_addr
+
+    proximo_ordenar:
+    movl    next_reg_addr, %eax
+
+    cmpl	$0, %eax
+    je      inserir_na_pos
+
+    ## Calcula quantidade de quartos (simples + suites) do registro atual
+
+    # Calcula posicao da quantidade de quartos simples (%eax) e suites (%ebx)
+    addl	$168, %eax
+
+    movl    4(%eax), %ebx
+
+    # Compara %eax com %ebx
+    addl    (%eax), %ebx
+
+    movl    qtd_quartos, %eax
+
+    cmpl	%eax, %ebx              # %ebx >= %eax ?, %eax - qtd_quartos_inserir, %ebx - qtd_quartos_atual
+    jge     inserir_na_pos
+
+    # prev_reg_addr <- next_reg_addr; Salva next_reg_addr em prev_reg_addr
+    movl    next_reg_addr, %eax
+    movl    %eax, prev_reg_addr
+
+    # next_reg_addr <- proximo; calcula proximo registro da lista 
+    movl    (%eax), %ebx
+    movl    %ebx, next_reg_addr
+
+    jmp     proximo_ordenar
+
+    inserir_na_pos:
+    movl    cur_reg_addr, %eax
+
+    movl    prev_reg_addr, %ebx
+    movl    %eax, (%ebx)
+
+    movl    next_reg_addr, %ebx
+    movl    %ebx, (%eax)
+
+    RET
 
 fim_erro:
     # Mostra mensagem de erro
