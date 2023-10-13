@@ -57,8 +57,8 @@
     pede_celular:   .asciz  "Celular (11 digitos): "
     pede_cidade:    .asciz  "Cidade: "
     pede_bairro:    .asciz  "Bairro: "
-    pede_tipo:      .asciz  "Tipo: "
-    pede_garagem:   .asciz  "Garagem: "
+    pede_tipo:      .asciz  "Tipo (0 - casa, 1 - apto.): "
+    pede_garagem:   .asciz  "Garagem (0 - sem, 1 - com): "
     pede_metragem:  .asciz  "Metragem: "
     pede_simples:   .asciz  "Simples: "
     pede_suites:    .asciz  "Suites: "
@@ -70,12 +70,16 @@
     mostra_cidade:  .asciz  "Cidade: %s\n"
     mostra_bairro:  .asciz  "Bairro: %s\n"
     mostra_celular: .asciz  "Celular: %s\n"
-    mostra_tipo:    .asciz  "Tipo: %d\n"
-    mostra_garagem: .asciz  "Garagem: %d\n"
+    mostra_tipo:    .asciz  "Tipo: %s\n"
+    mostra_garagem: .asciz  "Garagem: %s\n"
     mostra_simples: .asciz  "Simples: %d\n"
     mostra_suites:  .asciz  "Suites: %d\n"
     mostra_metragem:.asciz  "Metragem: %d\n"
     mostra_aluguel: .asciz  "Aluguel: %.2f\n"
+    mostra_casa: .asciz  "casa"
+    mostra_apto: .asciz  "apto."
+    mostra_sem: .asciz  "nao"
+    mostra_com: .asciz  "sim"
 
     mostra_id:      .asciz  "%d.\n"    
 
@@ -187,20 +191,20 @@ inserir:
     pushl	$tipo_bool  
     pushl	$pede_tipo
     call    pedir
+
     movl    reg_bool, %eax
     movl    %eax, num_value
-
-    call    ler_num
+    call    ler_bool
 
     # Leitura da existencia de garagem
     pushl	$reg_bool
     pushl	$tipo_bool
     pushl	$pede_garagem
     call    pedir
+
     movl    reg_bool, %eax
     movl    %eax, num_value
-
-    call    ler_num
+    call    ler_bool
 
     movl    $4, qtd_bytes           # Inicia leituras de ints e floats de 4 byte
 
@@ -285,8 +289,8 @@ pedir:
 
 # Le uma string do novo registro
 ler_str:
+    # Inserir marcador de fim de string (\0) ao fim da string
     movl    qtd_bytes, %eax
-
     movb    $0, reg_str(%eax)
 
     # Define fonte (reg_str) e destino (regs_lst_cur) para escrita de nome no registro
@@ -300,14 +304,31 @@ ler_str:
 
     movl    qtd_bytes, %eax
     addl    %eax, offset
-    addl    $1, offset
+    incl    offset
 
     RET
 
 # Le um booleano do novo registro
-#ler_bool:
-#    cmpb	$'s',%al
-#	je		_start
+ler_bool:
+    movl    reg_bool, %eax
+
+    cmpb	$0, %al
+	je		opcao_valida
+    cmpb	$1, %al
+	je		opcao_valida
+
+    jmp     fim_erro
+
+    opcao_valida:
+    movl    cur_reg_addr, %edi
+    addl    offset, %edi
+
+    movb     %al, (%edi)
+
+    movl    qtd_bytes, %eax
+    addl    %eax, offset
+
+    RET
 
 # Le um numero do novo registro
 ler_num:             
@@ -536,12 +557,18 @@ liberar:
 fim:
     call liberar                    # Libera lista de registros
                
-    break2:
     movl $1, %eax                   # eax <- sair
-    xor %ebx, %ebx                  # ebx <- saída sem erro
+    movl $0, %ebx                  # ebx <- saída sem erro
     int $0x80                       # Chamada de sistema
 
 ########## Auxiliares ##########
+
+fim_erro:
+    call liberar                    # Libera lista de registros
+               
+    movl $1, %eax                   # eax <- sair
+    movl $1, %ebx                  # ebx <- saída sem erro
+    int $0x80                       # Chamada de sistema
 
 mostrar_reg:
     movl    cur_reg_addr, %esi
@@ -575,26 +602,43 @@ mostrar_reg:
     pushl   %esi
     pushl   $mostra_celular
     call    printf
-    addl    $12, %esi
 
-    break1:
+    addl    $12, %esi
 
     # Mostra tipo
     movl    (%esi), %eax
 
-    movzbl  %al, %eax
-    pushl   %eax
+    cmpb	$0, %al
+	je		casa
+
+    pushl   $mostra_apto
+    jmp     print_tipo
+
+    casa:
+    pushl   $mostra_casa
+
+    print_tipo:
     pushl   $mostra_tipo
     call    printf
+
     addl    $1, %esi
 
     # Mostra garagem
     movl    (%esi), %eax
 
-    movzbl  %al, %eax
-    pushl   %eax
+    cmpb	$0, %al
+	je		sem
+
+    pushl   $mostra_com
+    jmp     print_garagem
+
+    sem:
+    pushl   $mostra_sem
+
+    print_garagem:
     pushl   $mostra_garagem
     call    printf
+
     addl    $1, %esi
 
     # Mostra quantidade de quartos simples
