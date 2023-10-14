@@ -66,6 +66,7 @@
     pede_aluguel:   .asciz  "Aluguel: "
     pede_remover:   .asciz  "Pos: "
     pede_consultar: .asciz  "Qtd quartos: "
+
     mostra_nome:    .asciz  "Nome: %s\n"
     mostra_cidade:  .asciz  "Cidade: %s\n"
     mostra_bairro:  .asciz  "Bairro: %s\n"
@@ -80,6 +81,7 @@
     mostra_apto:    .asciz  "apto."
     mostra_sem:     .asciz  "nao"
     mostra_com:     .asciz  "sim"
+
     erro_bool:      .asciz  "Opcao booleana invalida"
     regs_filename:  .asciz  "registros.txt"
     erro_filewrite: .asciz  "Erro ao escrever em arquivo"
@@ -474,16 +476,12 @@ consultar:
 
 ## Gravação de cadastro em disco
 gravar:
-    # Verifica se ha elementos, se nao, termina
-    cmpl    $0, regs_lst_first
-    je      fim_gravar
-
     ## Abrir arquivo para leitura
 
     # Setando flags
     movl    $5, %eax                # Flag para system call para abrir arquivos
     movl    $regs_filename, %ebx    # Ponteiro ao arquivo de nome regs_filename
-    movl    $0101, %ecx             # Cria se nao existe; somente para escrita
+    movl    $0101 | 01000, %ecx     # Sobrescreve; somente para escrita
     movl    $0666, %edx             # Permissao de execucao escrita para geral
 
     # Chamada de sistema
@@ -561,13 +559,12 @@ recuperar:
     int     $0x80
 
     # Verifica se chegou no fim do arquivo
+    break1:
     cmpl    $0, %eax
     jle     fechar_arquivo_recuperar
 
     # Alocar novo registro
     call    alocar
-
-    break1:
 
     movl    %eax, cur_reg_addr
     addl    $4, %eax                # Deslocar para posicao de dados
@@ -590,8 +587,6 @@ recuperar:
     movl    $6, %eax
     movl    filehandle, %ebx
     int     $0x80
-
-    addl    $4, %esp
 
     RET
 
@@ -805,5 +800,3 @@ mostrar_reg:
     addl    $84, %esp               # 11 x 2 x 4 = 84
 
     RET
-
-
